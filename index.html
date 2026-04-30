@@ -1,0 +1,1181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Novel Autocomplete Studio</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f2ec;
+      --panel: #fffaf3;
+      --ink: #25211c;
+      --muted: #9a8d7d;
+      --accent: #6d4aff;
+      --accent-soft: rgba(109, 74, 255, 0.12);
+      --danger: #9d2b2b;
+      --border: #ded3c6;
+      --shadow: 0 18px 60px rgba(40, 30, 20, 0.13);
+      --font: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #171412;
+        --panel: #211d1a;
+        --ink: #f4eadf;
+        --muted: #85786d;
+        --accent: #a997ff;
+        --accent-soft: rgba(169, 151, 255, 0.13);
+        --danger: #ff8a8a;
+        --border: #3a302a;
+        --shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top left, rgba(109, 74, 255, 0.12), transparent 32rem), var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+    }
+
+    .app { width: min(1180px, 100%); display: grid; gap: 1rem; }
+    header { display: flex; justify-content: space-between; gap: 1rem; align-items: end; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.04em; }
+    .subtitle { margin: 0.35rem 0 0; color: var(--muted); max-width: 54rem; line-height: 1.45; }
+
+    .grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 1rem; align-items: start; }
+    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } header { align-items: start; flex-direction: column; } }
+
+    .controls, .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    button, select, input[type="file"], textarea, input[type="range"] { font: 600 0.85rem Inter, system-ui, sans-serif; }
+    button, select, .file-label {
+      border: 1px solid var(--border); background: var(--panel); color: var(--ink); border-radius: 999px;
+      padding: 0.65rem 0.9rem; box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    }
+    button, .file-label { cursor: pointer; }
+    button:hover, .file-label:hover { border-color: var(--accent); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    input[type="file"] { display: none; }
+
+    .shell, .side-card { background: var(--panel); border: 1px solid var(--border); border-radius: 1.35rem; box-shadow: var(--shadow); overflow: hidden; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; border-bottom: 1px solid var(--border); padding: 0.8rem 1rem; color: var(--muted); font: 0.8rem var(--mono); }
+    .status strong { color: var(--accent); }
+
+    .editor {
+      width: 100%; min-height: 590px; max-height: 74vh; overflow: auto; padding: clamp(1.1rem, 3vw, 2.2rem);
+      border: 0; outline: 0; resize: vertical; font: 1.25rem/1.72 var(--font); letter-spacing: 0.003em;
+      white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; tab-size: 2; caret-color: var(--ink);
+    }
+    .editor:empty::before { content: "Start the scene here…"; color: var(--muted); opacity: 0.55; pointer-events: none; }
+    .editor::selection { background: rgba(109, 74, 255, 0.25); }
+    .editor p, .editor blockquote, .editor h1, .editor h2, .editor h3 { margin: 0 0 1rem; }
+    .editor h1, .editor h2, .editor h3 { font-family: Inter, ui-sans-serif, system-ui, sans-serif; line-height: 1.25; letter-spacing: -0.025em; }
+    .editor h1 { font-size: 1.65rem; } .editor h2 { font-size: 1.35rem; } .editor h3 { font-size: 1.12rem; }
+    .editor blockquote { border-left: 3px solid var(--border); padding-left: 1rem; color: color-mix(in srgb, var(--ink), var(--muted) 25%); font-style: italic; }
+    .editor .doc-indent { text-indent: 2em; }
+    .editor .scene-break { text-align: center; letter-spacing: 0.28em; color: var(--muted); margin: 1.4rem 0; }
+    .suggestion { color: var(--muted); opacity: 0.58; user-select: none; pointer-events: none; }
+
+    .hintbar { display: flex; justify-content: space-between; gap: 1rem; padding: 0.75rem 1rem 1rem; color: var(--muted); font-size: 0.85rem; }
+    .metric { white-space: nowrap; }
+    .side-card { padding: 1rem; display: grid; gap: 1rem; }
+    .side-card h2 { margin: 0; font-size: 1rem; letter-spacing: -0.02em; }
+    .side-card p { margin: 0; color: var(--muted); line-height: 1.45; font-size: 0.88rem; }
+    .panel { border: 1px solid var(--border); border-radius: 1rem; padding: 0.85rem; display: grid; gap: 0.75rem; background: rgba(127,127,127,0.035); }
+    .panel-title { display: flex; justify-content: space-between; gap: 1rem; color: var(--muted); font: 0.76rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
+    .slider-row { display: grid; gap: 0.35rem; }
+    .slider-row label { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.85rem; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .style-profile { display: grid; gap: 0.35rem; font-size: 0.85rem; color: var(--muted); }
+    .style-profile b { color: var(--ink); font-weight: 650; }
+    .retrieved { display: grid; gap: 0.6rem; max-height: 18rem; overflow: auto; padding-right: 0.2rem; }
+    .snippet { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 0.65rem 0.7rem; border-radius: 0.75rem; color: var(--ink); font: 0.82rem/1.4 var(--font); }
+    .snippet small { display: block; color: var(--muted); font-family: var(--mono); margin-bottom: 0.25rem; }
+    .manual-context { min-height: 5.5rem; max-height: 12rem; resize: vertical; width: 100%; border: 1px solid var(--border); border-radius: 0.85rem; background: transparent; color: var(--ink); padding: 0.7rem; font: 0.9rem/1.45 Inter, system-ui, sans-serif; outline: none; }
+    .setting-input { width: 100%; border: 1px solid var(--border); border-radius: 0.85rem; background: transparent; color: var(--ink); padding: 0.65rem 0.7rem; font: 0.82rem/1.35 var(--mono); outline: none; }
+    .setting-input:focus, .manual-context:focus { border-color: var(--accent); }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; font-size: 0.85rem; }
+    .toggle-row input { accent-color: var(--accent); }
+    .tiny { color: var(--muted); font: 0.75rem/1.35 var(--mono); }
+    .tiny.danger { color: var(--danger); }
+    .pill { display: inline-flex; align-items: center; gap: 0.3rem; border: 1px solid var(--border); border-radius: 999px; padding: 0.25rem 0.55rem; font-size: 0.76rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div>
+        <h1>Novel Autocomplete Studio</h1>
+        <p class="subtitle">A fiction-first autocomplete editor. Upload previous writing as TXT, Markdown, or PDF; it indexes locally, retrieves relevant passages, and can optionally use an LLM with rate-limit backoff.</p>
+      </div>
+      <div class="controls">
+        <label class="file-label" for="corpusFile">Import corpus</label>
+        <input id="corpusFile" type="file" accept=".txt,.md,.text,.pdf,application/pdf,text/plain,text/markdown" />
+        <button id="seed">Seed opening</button>
+        <button id="clear">Clear</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="shell" aria-label="Novel writing editor">
+        <div class="toolbar">
+          <span class="status">Suggestion: <strong id="state">ready</strong></span>
+          <span>Tab accepts · Esc dismisses · Ctrl/⌘+Space regenerates · Ctrl/⌘+Enter scene break</span>
+        </div>
+        <div id="editor" class="editor" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Editor"></div>
+        <div class="hintbar">
+          <span id="reason">Import a corpus or start writing a scene.</span>
+          <span class="metric"><span id="words">0</span> words</span>
+        </div>
+      </section>
+
+      <aside class="side-card" aria-label="Novel context controls">
+        <section class="panel">
+          <div class="panel-title"><span>Corpus</span><span id="corpusStatus">none</span></div>
+          <p id="corpusDetails">Upload a large TXT or PDF manuscript. TXT/Markdown imports are fastest; PDF extraction depends on the PDF layout.</p>
+          <div class="row"><button id="forgetCorpus" disabled>Forget corpus</button><span class="pill"><span id="chunkCount">0</span> chunks</span></div>
+          <p class="tiny">PDF support uses PDF.js from a CDN. If PDF import fails, export to TXT/Markdown and import that instead.</p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title"><span>Blend</span><span>anti-overfit</span></div>
+          <div class="slider-row"><label for="styleStrength">Style influence <span id="styleValue">55%</span></label><input id="styleStrength" type="range" min="0" max="100" value="55" /></div>
+          <div class="slider-row"><label for="retrievalDepth">Retrieved context <span id="retrievalValue">5 passages</span></label><input id="retrievalDepth" type="range" min="0" max="9" value="5" /></div>
+          <div class="slider-row"><label for="novelContinuity">Continuity bias <span id="continuityValue">60%</span></label><input id="novelContinuity" type="range" min="0" max="100" value="60" /></div>
+          <p class="tiny">Recent draft context dominates. Corpus influence is capped and direct phrase copying is trimmed.</p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title"><span>LLM autocomplete</span><span id="llmStatus">off</span></div>
+          <label class="toggle-row"><span>Use LLM for inline suggestions</span><input id="llmEnabled" type="checkbox" /></label>
+          <input id="apiKey" class="setting-input" type="password" autocomplete="off" placeholder="OpenAI API key, stored only in this page session" />
+          <input id="llmEndpoint" class="setting-input" type="text" value="https://api.openai.com/v1/responses" />
+          <select id="llmModel" class="setting-input">
+            <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+            <option value="gpt-5.4-nano">gpt-5.4-nano</option>
+            <option value="gpt-5.4">gpt-5.4</option>
+            <option value="gpt-5.5">gpt-5.5</option>
+          </select>
+          <div class="slider-row"><label for="llmDebounce">LLM debounce <span id="llmDebounceValue">850 ms</span></label><input id="llmDebounce" type="range" min="400" max="2500" step="50" value="850" /></div>
+          <div class="slider-row"><label for="llmMinInterval">Min request interval <span id="llmMinIntervalValue">2500 ms</span></label><input id="llmMinInterval" type="range" min="1000" max="10000" step="250" value="2500" /></div>
+          <p id="rateLimitNote" class="tiny">429 responses trigger exponential backoff and local fallback, instead of throwing.</p>
+          <p class="tiny">For local prototyping only: browser keys are visible to this page. For real use, put a small server/proxy between this editor and the model API.</p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title"><span>Scene notes</span><span>optional</span></div>
+          <textarea id="manualContext" class="manual-context" placeholder="Current scene intent, character names, setting, secrets, or constraints."></textarea>
+          <p class="tiny">Scene notes steer retrieval and suggestions more than old corpus text.</p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title"><span>Style profile</span><span id="profileStatus">draft-only</span></div>
+          <div id="styleProfile" class="style-profile">
+            <span><b>Rhythm:</b> waiting for corpus</span>
+            <span><b>Dialogue:</b> waiting for corpus</span>
+            <span><b>Texture:</b> waiting for corpus</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title"><span>Retrieved now</span><span id="retrievedCount">0</span></div>
+          <div id="retrieved" class="retrieved"><p class="tiny">Relevant passages will appear here.</p></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    const editor = $('editor');
+    const state = $('state');
+    const reason = $('reason');
+    const wordsEl = $('words');
+    const corpusFile = $('corpusFile');
+    const corpusStatus = $('corpusStatus');
+    const corpusDetails = $('corpusDetails');
+    const chunkCount = $('chunkCount');
+    const retrievedEl = $('retrieved');
+    const retrievedCount = $('retrievedCount');
+    const styleProfile = $('styleProfile');
+    const profileStatus = $('profileStatus');
+    const forgetCorpus = $('forgetCorpus');
+    const styleStrength = $('styleStrength');
+    const retrievalDepth = $('retrievalDepth');
+    const novelContinuity = $('novelContinuity');
+    const styleValue = $('styleValue');
+    const retrievalValue = $('retrievalValue');
+    const continuityValue = $('continuityValue');
+    const manualContext = $('manualContext');
+    const llmEnabled = $('llmEnabled');
+    const apiKey = $('apiKey');
+    const llmEndpoint = $('llmEndpoint');
+    const llmModel = $('llmModel');
+    const llmStatus = $('llmStatus');
+    const llmDebounce = $('llmDebounce');
+    const llmMinInterval = $('llmMinInterval');
+    const llmDebounceValue = $('llmDebounceValue');
+    const llmMinIntervalValue = $('llmMinIntervalValue');
+    const rateLimitNote = $('rateLimitNote');
+
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    const seedCorpora = `The house at the end of the lane had been empty for seven summers, but every October someone lit a lamp in the upstairs room.
+Nobody mentioned the suitcase until after dinner. By then the rain had made silver ropes of the windows, and the dog would not stop staring at the cellar door.
+She had meant to tell the truth at the station, but the train arrived early and Elias was already standing on the platform with her mother's gloves in his hand.
+The old road crossed the marsh and narrowed beneath the black pines. Every child in town knew not to count the bells after midnight.
+Dialogue was easier in the dark, when faces became guesses and lies could pass for kindness.`;
+
+    const stopwords = new Set('a an and are as at be been but by for from had has have he her hers him his i in into is it its me my not of on or our she so that the their them then there they this to was we were what when where which who will with you your about after all also am any because before between can could did do does down even first if just like more most no now only other over said same should than through too up very would'.split(' '));
+
+    let draftText = '';
+    let suggestion = '';
+    let dismissedAt = '';
+    let rendering = false;
+    let updateTimer = null;
+    let savedSelectionPath = null;
+    let savedScrollTop = 0;
+    let lastRandomSalt = 0;
+    let corpus = null;
+    let lastRetrieved = [];
+    let llmAbort = null;
+    let llmCacheKey = '';
+    let llmCacheValue = '';
+    let latestSuggestionJob = 0;
+
+    const rateLimiter = {
+      lastStartedAt: 0,
+      failureCount: 0,
+      cooldownUntil: 0,
+      last429At: 0,
+      maxBackoffMs: 60000,
+      baseBackoffMs: 6000
+    };
+
+    const CHUNK_WORDS = 170;
+    const CHUNK_OVERLAP = 55;
+    const MAX_RECENT_DRAFT_CHARS = 14000;
+    const MAX_VISIBLE_SUGGESTION_CHARS = 170;
+    const COPY_GRAM_SIZE = 7;
+
+    function escapeHtml(text) {
+      return String(text).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+    }
+
+    function normalize(text) {
+      return String(text).toLowerCase()
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, "'")
+        .replace(/[^a-z0-9'\s.,!?;:—-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function wordTokens(text) { return normalize(text).match(/[a-z0-9']+/g) || []; }
+    function tokenize(text) { return normalize(text).match(/[a-z0-9']+|[.,!?;:—-]/g) || []; }
+
+    function detokenize(tokens) {
+      let out = '';
+      for (const tok of tokens) {
+        if (/^[.,!?;:]$/.test(tok)) out = out.trimEnd() + tok;
+        else if (/^[—-]$/.test(tok)) out = out.trimEnd() + tok;
+        else out += (out ? ' ' : '') + tok;
+      }
+      return out.replace(/\s+([.!?,;:])/g, '$1').replace(/—\s+/g, '—');
+    }
+
+    function buildModel(text, weight = 1, maxOrder = 5) {
+      const tokens = tokenize(text);
+      const model = new Map();
+      for (let order = 1; order <= maxOrder; order++) {
+        for (let i = 0; i < tokens.length - order; i++) {
+          const key = tokens.slice(i, i + order).join(' ');
+          const next = tokens[i + order];
+          if (!model.has(key)) model.set(key, new Map());
+          model.get(key).set(next, (model.get(key).get(next) || 0) + weight);
+        }
+      }
+      return model;
+    }
+
+    function mergeModels(models) {
+      const merged = new Map();
+      for (const model of models) {
+        for (const [key, options] of model) {
+          if (!merged.has(key)) merged.set(key, new Map());
+          for (const [tok, count] of options) merged.get(key).set(tok, (merged.get(key).get(tok) || 0) + count);
+        }
+      }
+      return merged;
+    }
+
+    function weightedPick(options, temperature = 0.75) {
+      const entries = [...options.entries()].map(([tok, count]) => [tok, Math.pow(count, 1 / Math.max(0.15, temperature))]).sort((a, b) => b[1] - a[1]);
+      if (!entries.length) return '';
+      const pool = entries.slice(0, Math.min(7, entries.length));
+      const total = pool.reduce((sum, item) => sum + item[1], 0);
+      let r = (Math.random() + lastRandomSalt) % 1 * total;
+      for (const [tok, weight] of pool) {
+        r -= weight;
+        if (r <= 0) return tok;
+      }
+      return pool[0][0];
+    }
+
+    function completeFromModel(prefix, model, maxTokens = 20) {
+      const tokens = tokenize(prefix);
+      const generated = [];
+      const current = tokens.slice();
+      const style = Number(styleStrength.value) / 100;
+      const temperature = 0.62 + (1 - style) * 0.35;
+      for (let step = 0; step < maxTokens; step++) {
+        let next = '';
+        for (let order = Math.min(5, current.length); order >= 1; order--) {
+          const key = current.slice(-order).join(' ');
+          if (model.has(key)) { next = weightedPick(model.get(key), temperature); break; }
+        }
+        if (!next) break;
+        generated.push(next);
+        current.push(next);
+        if (/[.!?]/.test(next) && generated.length > 5) break;
+      }
+      return detokenize(generated);
+    }
+
+    function currentParagraph(text) { return (String(text).split(/\n\s*\n/).pop() || text).slice(-1600); }
+    function currentSentence(text) { const m = String(text).match(/([^.!?\n]{1,240})$/); return m ? m[1].trim() : ''; }
+
+    function fallback(text) {
+      const sentence = currentSentence(text);
+      const texture = corpus?.profile?.textureWords?.slice(0, 18) || ['door', 'window', 'rain', 'room', 'road', 'hand', 'light', 'floor'];
+      const names = extractProperNouns(text + ' ' + manualContext.value).slice(0, 5);
+      const anchor = names[0] || texture[Math.abs(hash(sentence + lastRandomSalt)) % texture.length];
+      const options = [
+        `as though ${anchor} had been waiting for the sentence to find it.`,
+        'and the room seemed to notice before anyone spoke.',
+        'before the silence could harden into an answer.',
+        'with the careful stillness of someone keeping a secret.',
+        'until the moment changed shape around them.'
+      ];
+      const pick = options[Math.abs(hash(sentence + anchor + lastRandomSalt)) % options.length];
+      if (!text.trim()) return 'The room held its breath before anyone spoke. ';
+      if (/[,;:]\s*$/.test(text)) return ' ' + pick;
+      if (/\b(and|but|because|though|while|when|where|until|before|after)\s*$/i.test(text)) return ' ' + pick.replace(/^(and|but|because|though|while|when|where|until|before|after)\s+/i, '');
+      if (/[.!?]\s*$/.test(text)) return ' ' + pick[0].toUpperCase() + pick.slice(1);
+      return ' ' + pick;
+    }
+
+    function hash(str) {
+      let h = 2166136261;
+      for (let i = 0; i < String(str).length; i++) {
+        h ^= String(str).charCodeAt(i);
+        h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+      }
+      return h | 0;
+    }
+
+    function removeSuggestionNode() {
+      editor.querySelectorAll('.suggestion').forEach(node => node.remove());
+    }
+
+    function editorText() {
+      const clone = editor.cloneNode(true);
+      clone.querySelectorAll('.suggestion').forEach(node => node.remove());
+      return clone.innerText.replaceAll('\u00a0', ' ');
+    }
+
+    function sanitizeEditorHtml(root) {
+      const allowed = new Set(['P','BR','B','STRONG','I','EM','U','S','H1','H2','H3','BLOCKQUOTE','DIV','SPAN']);
+      const elements = Array.from(root.querySelectorAll('*')).reverse();
+      for (const el of elements) {
+        if (el.classList?.contains('suggestion')) { el.remove(); continue; }
+        if (!allowed.has(el.tagName)) { el.replaceWith(...Array.from(el.childNodes)); continue; }
+        const scene = el.classList?.contains('scene-break');
+        const indent = el.classList?.contains('doc-indent');
+        Array.from(el.attributes).forEach(attr => el.removeAttribute(attr.name));
+        if (scene) el.className = 'scene-break';
+        else if (indent) el.className = 'doc-indent';
+      }
+    }
+
+    function saveSelection() {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount || !editor.contains(selection.anchorNode)) return null;
+      const range = selection.getRangeAt(0);
+      return { nodePath: pathFromNode(range.startContainer), offset: range.startOffset };
+    }
+
+    function restoreSelection(saved) {
+      if (!saved) return false;
+      const node = nodeFromPath(saved.nodePath);
+      if (!node) return false;
+      const range = document.createRange();
+      const offset = Math.min(saved.offset, node.nodeType === Node.TEXT_NODE ? node.textContent.length : node.childNodes.length);
+      range.setStart(node, offset);
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return true;
+    }
+
+    function pathFromNode(node) {
+      const path = [];
+      let current = node;
+      while (current && current !== editor) {
+        const parent = current.parentNode;
+        if (!parent) return [];
+        path.unshift(Array.prototype.indexOf.call(parent.childNodes, current));
+        current = parent;
+      }
+      return path;
+    }
+
+    function nodeFromPath(path) {
+      let node = editor;
+      for (const index of path || []) {
+        if (!node.childNodes[index]) return null;
+        node = node.childNodes[index];
+      }
+      return node;
+    }
+
+    function prefixBeforeCaret() {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount || !editor.contains(selection.anchorNode)) return draftText;
+      const range = selection.getRangeAt(0).cloneRange();
+      const pre = document.createRange();
+      pre.selectNodeContents(editor);
+      pre.setEnd(range.startContainer, range.startOffset);
+      const fragment = pre.cloneContents();
+      const temp = document.createElement('div');
+      temp.appendChild(fragment);
+      temp.querySelectorAll('.suggestion').forEach(node => node.remove());
+      return temp.innerText.replaceAll('\u00a0', ' ');
+    }
+
+    function insertSuggestionAtCaret(text) {
+      removeSuggestionNode();
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount || !editor.contains(selection.anchorNode)) return;
+      const range = selection.getRangeAt(0).cloneRange();
+      const marker = document.createElement('span');
+      marker.className = 'suggestion';
+      marker.contentEditable = 'false';
+      marker.textContent = text;
+      range.insertNode(marker);
+      restoreSelection(savedSelectionPath);
+    }
+
+    function shouldSuggest(text) {
+      if (text === dismissedAt) return false;
+      if (text.length && !/[\s,;:.!?—-]$/.test(text)) return false;
+      return true;
+    }
+
+    function updateControlLabels() {
+      styleValue.textContent = `${styleStrength.value}%`;
+      retrievalValue.textContent = `${retrievalDepth.value} passage${retrievalDepth.value === '1' ? '' : 's'}`;
+      continuityValue.textContent = `${novelContinuity.value}%`;
+      llmDebounceValue.textContent = `${llmDebounce.value} ms`;
+      llmMinIntervalValue.textContent = `${llmMinInterval.value} ms`;
+      updateRateLimitUI();
+    }
+
+    function currentDebounceMs() {
+      return llmEnabled.checked ? Number(llmDebounce.value) : 95;
+    }
+
+    function scheduleSuggestionUpdate() {
+      if (rendering) return;
+      savedSelectionPath = saveSelection();
+      savedScrollTop = editor.scrollTop;
+      clearTimeout(updateTimer);
+      state.textContent = 'thinking';
+      updateTimer = setTimeout(() => updateSuggestion(), currentDebounceMs());
+    }
+
+    function syncFromUserInput() {
+      if (rendering) return;
+      removeSuggestionNode();
+      draftText = editorText();
+      scheduleSuggestionUpdate();
+    }
+
+    function getRetryAfterMs(response) {
+      const retryAfter = response.headers.get('retry-after');
+      if (!retryAfter) return null;
+      const seconds = Number(retryAfter);
+      if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+      const dateMs = Date.parse(retryAfter);
+      if (Number.isFinite(dateMs)) return Math.max(0, dateMs - Date.now());
+      return null;
+    }
+
+    function nextBackoffMs(retryAfterMs = null) {
+      if (retryAfterMs !== null) return Math.min(rateLimiter.maxBackoffMs, retryAfterMs);
+      const exp = Math.min(rateLimiter.failureCount, 5);
+      const jitter = 0.75 + Math.random() * 0.5;
+      return Math.round(Math.min(rateLimiter.maxBackoffMs, rateLimiter.baseBackoffMs * Math.pow(2, exp) * jitter));
+    }
+
+    function applyRateLimitBackoff(ms, source = '429') {
+      rateLimiter.failureCount += 1;
+      rateLimiter.cooldownUntil = Date.now() + ms;
+      if (source === '429') rateLimiter.last429At = Date.now();
+      llmStatus.textContent = 'cooldown';
+      rateLimitNote.classList.add('danger');
+      updateRateLimitUI();
+    }
+
+    function clearRateLimitBackoff() {
+      rateLimiter.failureCount = 0;
+      rateLimiter.cooldownUntil = 0;
+      rateLimitNote.classList.remove('danger');
+      updateRateLimitUI();
+    }
+
+    function updateRateLimitUI() {
+      const remaining = Math.max(0, rateLimiter.cooldownUntil - Date.now());
+      if (remaining > 0) {
+        rateLimitNote.textContent = `Rate limited. Using local fallback for ${Math.ceil(remaining / 1000)}s before the next LLM call.`;
+      } else {
+        rateLimitNote.textContent = '429 responses trigger exponential backoff and local fallback, instead of throwing.';
+        rateLimitNote.classList.remove('danger');
+      }
+    }
+
+    function canCallLLM() {
+      const now = Date.now();
+      if (now < rateLimiter.cooldownUntil) return false;
+      if (now - rateLimiter.lastStartedAt < Number(llmMinInterval.value)) return false;
+      return true;
+    }
+
+    async function generateLLMSuggestion(prefixText, retrievedChunks, jobId) {
+      if (!llmEnabled.checked) return '';
+      const key = apiKey.value.trim();
+      const endpoint = llmEndpoint.value.trim();
+      const model = llmModel.value.trim();
+      if (!key || !endpoint || !model) {
+        llmStatus.textContent = 'needs key';
+        return '';
+      }
+
+      updateRateLimitUI();
+      if (!canCallLLM()) {
+        llmStatus.textContent = Date.now() < rateLimiter.cooldownUntil ? 'cooldown' : 'throttled';
+        return '';
+      }
+
+      const cacheKey = model + '|' + prefixText.slice(-2200) + '|' + manualContext.value + '|' + retrievedChunks.map(chunk => chunk.id).join(',');
+      if (cacheKey === llmCacheKey) return llmCacheValue;
+      llmCacheKey = cacheKey;
+      llmCacheValue = '';
+
+      if (llmAbort) llmAbort.abort();
+      llmAbort = new AbortController();
+      rateLimiter.lastStartedAt = Date.now();
+      llmStatus.textContent = 'calling';
+
+      const newline = String.fromCharCode(10);
+      const activeSentence = currentSentence(prefixText);
+      const recentContext = prefixText.slice(-3600);
+      const style = corpus?.profile ? [
+        'Rhythm: average sentence length ' + corpus.profile.avgSentence.toFixed(1) + ' words.',
+        'Dialogue ratio: ' + corpus.profile.quoteRatio.toFixed(2) + '.',
+        'Common texture words: ' + corpus.profile.textureWords.slice(0, 18).join(', ') + '.',
+        'Known names from corpus: ' + corpus.profile.names.slice(0, 12).join(', ') + '.'
+      ].join(newline) : 'No imported corpus style profile yet.';
+      const retrievedText = retrievedChunks.slice(0, 5).map((chunk, index) => 'Excerpt ' + (index + 1) + ': ' + chunk.text.slice(0, 850)).join(newline + newline);
+
+      const prompt = [
+        'You are an inline autocomplete engine for fiction and novel writing.',
+        'Return only the next words to insert at the cursor. No explanation, no quotes, no markdown.',
+        'Continue the active sentence naturally. Do not restart, summarize, or jump scenes.',
+        'Do not copy exact phrases from excerpts. Use them only for voice, continuity, and style.',
+        'Prefer 4 to 22 words. Stop at a natural clause or sentence boundary.',
+        '',
+        'SCENE NOTES:',
+        manualContext.value.trim() || '(none)',
+        '',
+        'STYLE PROFILE:',
+        style,
+        '',
+        'RELEVANT PRIOR WRITING EXCERPTS:',
+        retrievedText || '(none)',
+        '',
+        'RECENT DRAFT BEFORE CURSOR:',
+        recentContext || '(empty)',
+        '',
+        'ACTIVE SENTENCE TO CONTINUE:',
+        activeSentence || '(new sentence)',
+        '',
+        'INLINE COMPLETION:'
+      ].join(newline);
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({ model, input: prompt, temperature: 0.35, max_output_tokens: 60, store: false }),
+          signal: llmAbort.signal
+        });
+
+        if (jobId !== latestSuggestionJob) return '';
+
+        if (response.status === 429) {
+          const retryAfterMs = getRetryAfterMs(response);
+          const backoffMs = nextBackoffMs(retryAfterMs);
+          applyRateLimitBackoff(backoffMs, '429');
+          return '';
+        }
+
+        if (!response.ok) {
+          const backoffMs = response.status >= 500 ? nextBackoffMs() : 0;
+          if (backoffMs) applyRateLimitBackoff(backoffMs, 'server');
+          llmStatus.textContent = 'fallback';
+          console.warn('LLM request failed with HTTP', response.status);
+          return '';
+        }
+
+        const data = await response.json();
+        let text = data.output_text || '';
+        if (!text && Array.isArray(data.output)) {
+          text = data.output.flatMap(item => item.content || []).map(part => part.text || '').join(' ');
+        }
+        text = cleanLLMCompletion(text, prefixText, retrievedChunks);
+        llmCacheValue = text;
+        clearRateLimitBackoff();
+        llmStatus.textContent = text ? 'ready' : 'empty';
+        return text;
+      } catch (error) {
+        if (error.name === 'AbortError') return '';
+        console.warn('LLM request failed; using local fallback.', error);
+        llmStatus.textContent = 'fallback';
+        return '';
+      }
+    }
+
+    function cleanLLMCompletion(text, prefixText, retrievedChunks) {
+      let clean = String(text || '').trim();
+      if (clean.startsWith('```')) clean = clean.slice(3).trim();
+      if (clean.endsWith('```')) clean = clean.slice(0, -3).trim();
+      while (clean.startsWith('"') || clean.startsWith("'") || clean.startsWith('“') || clean.startsWith('”')) clean = clean.slice(1).trim();
+      while (clean.endsWith('"') || clean.endsWith("'") || clean.endsWith('“') || clean.endsWith('”')) clean = clean.slice(0, -1).trim();
+      clean = clean.split(String.fromCharCode(10)).map(line => line.trim()).filter(Boolean).join(' ');
+      const lower = clean.toLowerCase();
+      const colon = clean.indexOf(':');
+      if (colon > -1 && (lower.startsWith('inline completion') || lower.startsWith('completion') || lower.startsWith('suggestion'))) clean = clean.slice(colon + 1).trim();
+      clean = removeOverfit(clean, retrievedChunks);
+      const completionWords = clean.split(' ').filter(Boolean);
+      if (completionWords.length > 28) clean = completionWords.slice(0, 28).join(' ') + '…';
+      const lastChar = prefixText.slice(-1);
+      const firstChar = clean.slice(0, 1);
+      const punctuationStarts = '.,!?;:—-';
+      if (prefixText && lastChar.trim() !== '' && clean && punctuationStarts.indexOf(firstChar) === -1) clean = ' ' + clean;
+      return clean;
+    }
+
+    function generatePredictiveSuggestion(prefixText, retrievedChunks) {
+      const sentence = currentSentence(prefixText);
+      const prefixWords = wordTokens(prefixText);
+      const candidates = [];
+      if (prefixWords.length < 2) return '';
+
+      const sources = [
+        { text: prefixText.slice(-MAX_RECENT_DRAFT_CHARS), weight: 5.0, label: 'draft' },
+        ...retrievedChunks.slice(0, 5).map((chunk, index) => ({ text: chunk.text, weight: 1.6 - index * 0.18, label: 'corpus' }))
+      ];
+
+      for (const source of sources) {
+        for (let suffixSize = Math.min(5, prefixWords.length); suffixSize >= 2; suffixSize--) {
+          const suffix = prefixWords.slice(-suffixSize);
+          collectContinuations(source.text, suffix, suffixSize, source.weight, source.label, candidates);
+        }
+      }
+
+      const filtered = candidates
+        .map(candidate => ({ ...candidate, score: scoreCandidate(candidate, sentence, prefixText) }))
+        .filter(candidate => candidate.score > 0 && candidate.text.length > 1)
+        .sort((a, b) => b.score - a.score);
+
+      return filtered[0]?.text || '';
+    }
+
+    function collectContinuations(sourceText, suffixWords, suffixSize, weight, label, out) {
+      const words = wordTokens(sourceText);
+      if (words.length <= suffixSize + 2) return;
+      const suffixKey = suffixWords.join(' ');
+      const maxWords = label === 'draft' ? 10 : 8;
+      for (let i = 0; i < words.length - suffixSize - 2; i++) {
+        if (words.slice(i, i + suffixSize).join(' ') !== suffixKey) continue;
+        const next = words.slice(i + suffixSize, i + suffixSize + maxWords);
+        if (!next.length) continue;
+        out.push({ text: next.join(' '), suffixSize, weight, label });
+      }
+    }
+
+    function scoreCandidate(candidate, sentence, prefixText) {
+      const candWords = wordTokens(candidate.text);
+      if (!candWords.length) return 0;
+      const sentenceSet = new Set(wordTokens(sentence));
+      const tailSet = new Set(wordTokens(prefixText).slice(-40));
+      let score = candidate.weight * candidate.suffixSize * candidate.suffixSize;
+      const localOverlap = candWords.filter(word => tailSet.has(word)).length;
+      const sentenceOverlap = candWords.filter(word => sentenceSet.has(word)).length;
+      score -= Math.max(0, sentenceOverlap - 1) * 4;
+      score -= localOverlap * 1.5;
+      if (candWords.length > 10) score -= (candWords.length - 10) * 0.9;
+      if (candWords.length < 3) score -= 3;
+      const currentNames = new Set(extractProperNouns(prefixText.slice(-1200) + ' ' + manualContext.value));
+      const alienNames = extractProperNouns(candidate.text).filter(name => !currentNames.has(name));
+      score -= alienNames.length * 7;
+      if (candidate.label === 'corpus') score *= 0.72;
+      return score;
+    }
+
+    async function updateSuggestion() {
+      updateControlLabels();
+      const jobId = ++latestSuggestionJob;
+      rendering = true;
+      removeSuggestionNode();
+      rendering = false;
+      restoreSelection(savedSelectionPath);
+      draftText = editorText();
+      wordsEl.textContent = (draftText.trim().match(/\S+/g) || []).length;
+
+      const prefixText = prefixBeforeCaret();
+      if (!shouldSuggest(prefixText)) {
+        suggestion = '';
+        state.textContent = 'dismissed';
+        reason.textContent = 'Press Ctrl/⌘+Space to ask again.';
+        editor.scrollTop = savedScrollTop;
+        return;
+      }
+
+      lastRetrieved = retrieveContext(queryForRetrieval(prefixText), Number(retrievalDepth.value));
+      renderRetrieved(lastRetrieved);
+
+      let generated = await generateLLMSuggestion(prefixText, lastRetrieved, jobId);
+      if (jobId !== latestSuggestionJob) return;
+      if (!generated) generated = generatePredictiveSuggestion(prefixText, lastRetrieved);
+      if (!generated) {
+        const model = buildBlendedModel(prefixText, lastRetrieved);
+        generated = completeFromModel(prefixText, model);
+      }
+
+      if (!generated || generated.length < 8 || generated.split(/\s+/).length < 3) {
+        generated = fallback(prefixText).trimStart();
+        reason.textContent = corpus ? 'Using local fallback; LLM unavailable or rate-limited.' : 'Using draft-only fallback. Import a corpus or enable LLM for stronger autocomplete.';
+      } else {
+        const usingLLM = llmEnabled.checked && apiKey.value.trim() && llmStatus.textContent !== 'fallback' && llmStatus.textContent !== 'cooldown' && llmStatus.textContent !== 'throttled';
+        reason.textContent = usingLLM ? 'LLM suggestion is anchored to the current sentence with retrieved excerpts for style/continuity.' : (lastRetrieved.length ? `Local suggestion is anchored to the current sentence; ${lastRetrieved.length} retrieved passage${lastRetrieved.length === 1 ? '' : 's'} only influence ranking/style.` : 'Local suggestion is anchored to the current sentence and recent draft context.');
+      }
+
+      generated = removeOverfit(generated, lastRetrieved);
+      if (prefixText && !/\s$/.test(prefixText) && generated && !/^[.,!?;:—-]/.test(generated)) generated = ' ' + generated;
+      if (generated.length > MAX_VISIBLE_SUGGESTION_CHARS) generated = generated.slice(0, MAX_VISIBLE_SUGGESTION_CHARS).replace(/\s+\S*$/, '') + '…';
+
+      suggestion = generated;
+      savedSelectionPath = saveSelection();
+      if (suggestion) insertSuggestionAtCaret(suggestion);
+      restoreSelection(savedSelectionPath);
+      editor.scrollTop = savedScrollTop;
+      state.textContent = suggestion ? 'available' : 'ready';
+    }
+
+    function buildBlendedModel(text, chunks) {
+      const style = Number(styleStrength.value) / 100;
+      const recent = text.slice(-MAX_RECENT_DRAFT_CHARS);
+      const notes = manualContext.value.trim();
+      const models = [buildModel(seedCorpora, 0.18, 4), buildModel((recent + ' ').repeat(2), 2.2, 5)];
+      if (notes) models.push(buildModel(notes, 2.6, 4));
+      chunks.slice(0, 9).forEach((chunk, i) => models.push(buildModel(chunk.text, (0.25 + style * 1.15) * Math.max(0.25, 1 - i * 0.1), 5)));
+      if (corpus?.profile) models.push(buildModel(corpus.profile.textureWords.slice(0, 20).join(' ') + ' ' + corpus.profile.names.slice(0, 10).join(' '), 0.1 + style * 0.25, 2));
+      return mergeModels(models);
+    }
+
+    function termFrequency(text) {
+      const counts = new Map();
+      for (const tok of wordTokens(text)) if (tok.length >= 3 && !stopwords.has(tok)) counts.set(tok, (counts.get(tok) || 0) + 1);
+      return counts;
+    }
+
+    function chunkText(text) {
+      const words = text.replace(/\r/g, '').split(/\s+/).filter(Boolean);
+      const chunks = [];
+      for (let start = 0; start < words.length; start += CHUNK_WORDS - CHUNK_OVERLAP) {
+        const slice = words.slice(start, start + CHUNK_WORDS);
+        if (slice.length < 50) continue;
+        const text = slice.join(' ');
+        chunks.push({ id: chunks.length, startWord: start, text, terms: termFrequency(text), names: extractProperNouns(text), dialogueRatio: dialogueRatio(text) });
+      }
+      return chunks;
+    }
+
+    function computeIdf(chunks) {
+      const df = new Map();
+      for (const chunk of chunks) for (const term of chunk.terms.keys()) df.set(term, (df.get(term) || 0) + 1);
+      const idf = new Map();
+      const n = chunks.length || 1;
+      for (const [term, count] of df) idf.set(term, Math.log(1 + n / (1 + count)));
+      return idf;
+    }
+
+    function queryForRetrieval(text) {
+      return [currentParagraph(text), text.slice(-1600), manualContext.value.trim(), extractProperNouns(text.slice(-4500)).join(' ')].filter(Boolean).join('\n');
+    }
+
+    function retrieveContext(queryText, count) {
+      if (!corpus || !count) return [];
+      const queryTerms = termFrequency(queryText);
+      const queryNames = new Set(extractProperNouns(queryText));
+      const continuity = Number(novelContinuity.value) / 100;
+      const scored = [];
+      for (const chunk of corpus.chunks) {
+        let score = 0;
+        for (const [term, qCount] of queryTerms) {
+          const cCount = chunk.terms.get(term) || 0;
+          if (cCount) score += qCount * cCount * (corpus.idf.get(term) || 1);
+        }
+        score += chunk.names.filter(name => queryNames.has(name)).length * (4 + 7 * continuity);
+        score += sceneAffinity(queryText, chunk.text) * (0.8 + continuity);
+        score += dialogueAffinity(queryText, chunk.text) * 2.2;
+        score = score / Math.sqrt(1 + chunk.terms.size / 90);
+        if (score > 0) scored.push({ ...chunk, score });
+      }
+      scored.sort((a, b) => b.score - a.score);
+      const picked = [];
+      for (const chunk of scored) {
+        if (picked.length >= count) break;
+        if (!picked.some(existing => Math.abs(existing.startWord - chunk.startWord) < CHUNK_WORDS * 2)) picked.push(chunk);
+      }
+      return picked;
+    }
+
+    function sceneAffinity(a, b) {
+      const terms = ['door','window','room','road','rain','dark','light','hand','face','voice','floor','house','street','night','morning','blood','water','letter','mother','father','child','table','bed','kitchen','garden','station','train','forest','river','church','bell'];
+      const aw = new Set(wordTokens(a));
+      const bw = new Set(wordTokens(b));
+      return terms.reduce((sum, word) => sum + (aw.has(word) && bw.has(word) ? 1 : 0), 0);
+    }
+
+    function dialogueRatio(text) {
+      return Math.min(1, ((String(text).match(/["“”]/g) || []).length / Math.max(1, (String(text).match(/\S+/g) || []).length)) * 10);
+    }
+
+    function dialogueAffinity(a, b) { return 1 - Math.min(1, Math.abs(dialogueRatio(a) - dialogueRatio(b))); }
+
+    function extractProperNouns(text) {
+      const matches = String(text).match(/\b[A-Z][a-zA-Z'’.-]{2,}\b/g) || [];
+      const banned = new Set(['The','And','But','For','This','That','When','Where','Before','After','Chapter','Part']);
+      const counts = new Map();
+      for (const raw of matches) {
+        const clean = raw.replace(/[’]/g, "'");
+        if (!banned.has(clean)) counts.set(clean, (counts.get(clean) || 0) + 1);
+      }
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name).slice(0, 40);
+    }
+
+    function topTerms(text, limit) {
+      return [...termFrequency(text).entries()].sort((a, b) => b[1] - a[1]).map(([term]) => term).filter(term => !/\d/.test(term)).slice(0, limit);
+    }
+
+    function buildStyleProfile(text, chunks) {
+      const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+      const lengths = sentences.map(s => wordTokens(s).length).filter(Boolean);
+      const avg = lengths.length ? lengths.reduce((a, b) => a + b, 0) / lengths.length : 0;
+      return {
+        avgSentence: avg,
+        longSentencePct: lengths.length ? lengths.filter(n => n > 28).length / lengths.length : 0,
+        shortSentencePct: lengths.length ? lengths.filter(n => n < 8).length / lengths.length : 0,
+        quoteRatio: dialogueRatio(text),
+        textureWords: topTerms(text, 36),
+        names: extractProperNouns(text).slice(0, 18),
+        emDashRate: (text.match(/—/g) || []).length / Math.max(1, sentences.length),
+        semicolonRate: (text.match(/;/g) || []).length / Math.max(1, sentences.length),
+        chunkTotal: chunks.length
+      };
+    }
+
+    function renderStyleProfile(profile) {
+      if (!profile) {
+        profileStatus.textContent = 'draft-only';
+        styleProfile.innerHTML = '<span><b>Rhythm:</b> waiting for corpus</span><span><b>Dialogue:</b> waiting for corpus</span><span><b>Texture:</b> waiting for corpus</span>';
+        return;
+      }
+      profileStatus.textContent = 'corpus';
+      const rhythm = profile.avgSentence > 24 ? 'long, flowing sentences' : profile.avgSentence < 12 ? 'brief, clipped sentences' : 'medium-length prose rhythm';
+      const contrast = profile.longSentencePct > 0.22 && profile.shortSentencePct > 0.18 ? ' with strong short/long contrast' : '';
+      const dialogue = profile.quoteRatio > 0.18 ? 'dialogue-forward' : profile.quoteRatio > 0.08 ? 'balanced dialogue and narration' : 'narration-forward';
+      const punctuation = profile.emDashRate > 0.08 ? 'em dashes' : profile.semicolonRate > 0.05 ? 'semicolons' : 'simple punctuation';
+      styleProfile.innerHTML = `<span><b>Rhythm:</b> ${rhythm}${contrast}</span><span><b>Dialogue:</b> ${dialogue}</span><span><b>Texture:</b> ${profile.textureWords.slice(0, 10).join(', ') || 'subtle'}</span><span><b>Punctuation:</b> ${punctuation}</span>`;
+    }
+
+    function removeOverfit(text, chunks) {
+      let clean = String(text).replace(/\s+/g, ' ').trimStart();
+      const generated = wordTokens(clean);
+      if (generated.length < COPY_GRAM_SIZE) return clean;
+      const retrievedText = normalize(chunks.map(c => c.text).join(' '));
+      for (let n = Math.min(10, generated.length); n >= COPY_GRAM_SIZE; n--) {
+        for (let i = 0; i <= generated.length - n; i++) {
+          const gram = generated.slice(i, i + n).join(' ');
+          if (retrievedText.includes(gram)) return generated.slice(0, Math.max(1, i + Math.floor(n / 2))).join(' ') + '…';
+        }
+      }
+      return clean;
+    }
+
+    function renderRetrieved(chunks) {
+      retrievedCount.textContent = chunks.length;
+      if (!chunks.length) { retrievedEl.innerHTML = '<p class="tiny">No corpus passages retrieved for this moment.</p>'; return; }
+      retrievedEl.innerHTML = chunks.map(chunk => `<div class="snippet"><small>#${chunk.id + 1} · score ${chunk.score.toFixed(1)} · word ${chunk.startWord.toLocaleString()}</small>${escapeHtml(chunk.text.slice(0, 300))}${chunk.text.length > 300 ? '…' : ''}</div>`).join('');
+    }
+
+    async function importCorpusFile(file) {
+      corpusStatus.textContent = 'reading…';
+      state.textContent = 'indexing';
+      corpusDetails.textContent = `Reading ${file.name}. Large PDFs can take time; TXT is fastest.`;
+      forgetCorpus.disabled = true;
+      try {
+        const lower = file.name.toLowerCase();
+        const text = file.type === 'application/pdf' || lower.endsWith('.pdf') ? await extractPdfText(file) : await file.text();
+        await buildCorpusIndex(text, file.name);
+      } catch (err) {
+        console.error(err);
+        corpusStatus.textContent = 'error';
+        corpusDetails.textContent = `Import failed: ${err.message || err}. Try exporting the PDF to TXT/Markdown and importing that.`;
+        forgetCorpus.disabled = !corpus;
+      } finally {
+        savedSelectionPath = saveSelection();
+        updateSuggestion();
+      }
+    }
+
+    async function extractPdfText(file) {
+      if (!window.pdfjsLib) throw new Error('PDF.js did not load');
+      const data = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data }).promise;
+      const pages = [];
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        corpusStatus.textContent = `page ${pageNum}/${pdf.numPages}`;
+        const page = await pdf.getPage(pageNum);
+        const content = await page.getTextContent();
+        pages.push(content.items.map(item => item.str).join(' '));
+        if (pageNum % 10 === 0) await sleep(0);
+      }
+      return pages.join('\n\n');
+    }
+
+    async function buildCorpusIndex(rawText, name) {
+      const cleaned = String(rawText).replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/\n{4,}/g, '\n\n').trim();
+      const chunks = chunkText(cleaned);
+      if (!chunks.length) throw new Error('no usable text found');
+      const idf = computeIdf(chunks);
+      const profile = buildStyleProfile(cleaned, chunks);
+      corpus = { name, chars: cleaned.length, words: wordTokens(cleaned).length, chunks, idf, profile };
+      corpusStatus.textContent = 'indexed';
+      chunkCount.textContent = chunks.length.toLocaleString();
+      corpusDetails.textContent = `${name}: ${corpus.words.toLocaleString()} words indexed into ${chunks.length.toLocaleString()} overlapping passages.`;
+      forgetCorpus.disabled = false;
+      renderStyleProfile(profile);
+      await sleep(0);
+    }
+
+    function forgetCorpusNow() {
+      corpus = null;
+      lastRetrieved = [];
+      corpusStatus.textContent = 'none';
+      corpusDetails.textContent = 'Upload a large TXT or PDF manuscript. TXT/Markdown imports are fastest; PDF extraction depends on the PDF layout.';
+      chunkCount.textContent = '0';
+      renderRetrieved([]);
+      forgetCorpus.disabled = true;
+      renderStyleProfile(null);
+      savedSelectionPath = saveSelection();
+      updateSuggestion();
+    }
+
+    function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+    function insertHtmlAtCaret(html) {
+      editor.focus();
+      removeSuggestionNode();
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount || !editor.contains(selection.anchorNode)) {
+        editor.insertAdjacentHTML('beforeend', html);
+      } else {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const fragment = document.createRange().createContextualFragment(html);
+        const last = fragment.lastChild;
+        range.insertNode(fragment);
+        if (last) {
+          range.setStartAfter(last);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+      draftText = editorText();
+      scheduleSuggestionUpdate();
+    }
+
+    function insertTextAtCaret(text) { insertHtmlAtCaret(escapeHtml(text).replaceAll('\n', '<br>')); }
+
+    function googleDocsHtmlToCleanHtml(html) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const out = document.createElement('div');
+      const blocks = Array.from(doc.body.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, div'));
+      if (!blocks.length) { const p = document.createElement('p'); p.textContent = doc.body.textContent || ''; out.appendChild(p); return out.innerHTML; }
+      for (const block of blocks) {
+        const text = (block.textContent || '').replaceAll('\u00a0', ' ').trim();
+        if (!text) continue;
+        const compact = text.split(' ').join('');
+        const tag = block.tagName === 'H1' ? 'h1' : block.tagName === 'H2' ? 'h2' : block.tagName === 'H3' ? 'h3' : 'p';
+        const clean = document.createElement(tag);
+        if (compact === '***' || compact === '###' || compact === '---') { clean.className = 'scene-break'; clean.textContent = '* * *'; }
+        else { if (hasIndent(block)) clean.className = 'doc-indent'; copyInline(block, clean); }
+        out.appendChild(clean);
+      }
+      sanitizeEditorHtml(out);
+      return out.innerHTML;
+    }
+
+    function hasIndent(el) {
+      const style = el.getAttribute('style') || '';
+      return (style.includes('text-indent') && !style.includes('text-indent:0')) || (style.includes('margin-left') && !style.includes('margin-left:0'));
+    }
+
+    function copyInline(source, target) {
+      for (const child of source.childNodes) {
+        if (child.nodeType === Node.TEXT_NODE) { target.appendChild(document.createTextNode(child.textContent.replaceAll('\u00a0', ' '))); continue; }
+        if (child.nodeType !== Node.ELEMENT_NODE) continue;
+        const tag = child.tagName;
+        const style = child.getAttribute('style') || '';
+        let wrapper = null;
+        if (tag === 'B' || tag === 'STRONG' || style.includes('font-weight:700') || style.includes('font-weight:bold')) wrapper = document.createElement('strong');
+        else if (tag === 'I' || tag === 'EM' || style.includes('font-style:italic')) wrapper = document.createElement('em');
+        else if (tag === 'U' || style.includes('underline')) wrapper = document.createElement('u');
+        else if (tag === 'S' || style.includes('line-through')) wrapper = document.createElement('s');
+        else if (tag === 'BR') wrapper = document.createElement('br');
+        if (wrapper && tag !== 'BR') { copyInline(child, wrapper); target.appendChild(wrapper); }
+        else if (wrapper) target.appendChild(wrapper);
+        else copyInline(child, target);
+      }
+    }
+
+    function acceptSuggestion() {
+      const node = editor.querySelector('.suggestion');
+      if (!suggestion || !node) return;
+      const acceptedNode = document.createTextNode(suggestion);
+      node.replaceWith(acceptedNode);
+      const range = document.createRange();
+      range.setStartAfter(acceptedNode);
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      suggestion = '';
+      draftText = editorText();
+      scheduleSuggestionUpdate();
+    }
+
+    function runSelfTests() {
+      const results = [];
+      function assert(name, condition) {
+        results.push({ name, pass: Boolean(condition) });
+        if (!condition) console.error('Autocomplete self-test failed:', name);
+      }
+      const fakeResponse = { headers: { get: key => key === 'retry-after' ? '2' : null } };
+      assert('retry-after seconds parses to milliseconds', getRetryAfterMs(fakeResponse) === 2000);
+      const oldFailures = rateLimiter.failureCount;
+      rateLimiter.failureCount = 2;
+      const backoff = nextBackoffMs(null);
+      assert('exponential backoff is positive', backoff > 0);
+      rateLimiter.failureCount = oldFailures;
+      assert('completion cleaner strips labels', cleanLLMCompletion('Suggestion: the door opened', 'Mara saw', []).trim() === 'the door opened');
+      assert('completion cleaner inserts leading space', cleanLLMCompletion('door opened', 'Mara saw', []).startsWith(' '));
+      assert('tokenizer handles fiction words', wordTokens('Mara opened the door.').includes('mara'));
+      console.info('Autocomplete self-tests:', results);
+    }
+
+    editor.addEventListener('beforeinput', () => removeSuggestionNode());
+    editor.addEventListener('input', syncFromUserInput);
+    editor.addEventListener('paste', event => {
+      event.preventDefault();
+      const html = event.clipboardData.getData('text/html');
+      const plain = event.clipboardData.getData('text/plain');
+      if (html) insertHtmlAtCaret(googleDocsHtmlToCleanHtml(html));
+      else insertTextAtCaret(plain);
+    });
+    editor.addEventListener('keydown', event => {
+      if (event.key === 'Tab' && suggestion) { event.preventDefault(); acceptSuggestion(); }
+      else if (event.key === 'Escape') { event.preventDefault(); dismissedAt = prefixBeforeCaret(); suggestion = ''; removeSuggestionNode(); state.textContent = 'dismissed'; reason.textContent = 'Press Ctrl/⌘+Space to ask again.'; }
+      else if ((event.ctrlKey || event.metaKey) && event.code === 'Space') { event.preventDefault(); dismissedAt = ''; lastRandomSalt = Math.random(); scheduleSuggestionUpdate(); }
+      else if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); insertTextAtCaret('\n\n'); }
+    });
+
+    corpusFile.addEventListener('change', event => {
+      const file = event.target.files?.[0];
+      if (file) importCorpusFile(file);
+      event.target.value = '';
+    });
+    forgetCorpus.addEventListener('click', forgetCorpusNow);
+    [styleStrength, retrievalDepth, novelContinuity, llmDebounce, llmMinInterval].forEach(input => input.addEventListener('input', () => { updateControlLabels(); scheduleSuggestionUpdate(); }));
+    manualContext.addEventListener('input', scheduleSuggestionUpdate);
+    [llmEnabled, apiKey, llmEndpoint, llmModel].forEach(input => input.addEventListener('input', () => { llmCacheKey = ''; scheduleSuggestionUpdate(); }));
+    llmEnabled.addEventListener('change', () => { llmStatus.textContent = llmEnabled.checked ? 'on' : 'off'; updateControlLabels(); });
+    $('seed').addEventListener('click', () => {
+      const seeds = [
+        'The house at the end of the lane had been empty for seven summers, ',
+        'Nobody mentioned the suitcase until after dinner. ',
+        'The first mistake was answering the telephone after midnight. ',
+        'By the time Mara reached the station, the train had already begun to move. ',
+        'The mapmaker refused to draw the island because it moved whenever someone lied. '
+      ];
+      editor.innerHTML = `<p>${escapeHtml(seeds[Math.abs(hash(String(Date.now()))) % seeds.length])}</p>`;
+      draftText = editorText();
+      const p = editor.querySelector('p');
+      const textNode = p?.firstChild || editor.firstChild;
+      if (textNode) {
+        const range = document.createRange();
+        range.setStart(textNode, textNode.textContent.length);
+        range.collapse(true);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      dismissedAt = '';
+      scheduleSuggestionUpdate();
+    });
+    $('clear').addEventListener('click', () => {
+      editor.innerHTML = '';
+      draftText = '';
+      suggestion = '';
+      dismissedAt = '';
+      savedSelectionPath = null;
+      updateSuggestion();
+    });
+
+    updateControlLabels();
+    editor.focus();
+    savedSelectionPath = saveSelection();
+    runSelfTests();
+    updateSuggestion();
+    setInterval(updateRateLimitUI, 1000);
+  </script>
+</body>
+</html>
